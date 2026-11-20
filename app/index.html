@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Neon Coast — Cover Maker</title>
+<link rel="stylesheet" href="./style.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">
+    <span class="brand-mark" aria-hidden="true"></span>
+    <div>
+      <h1>NEON COAST</h1>
+      <p>Cover Maker — multi-panel posters in a Vice City sunset</p>
+    </div>
+  </div>
+  <p class="topbar-note">Offline · No uploads · Your photos never leave this page</p>
+</header>
+
+<main class="app">
+  <aside class="controls">
+    <section>
+      <h2><span>01</span> Photo</h2>
+      <label class="file-btn">Add photos<input id="photo" type="file" accept="image/*" multiple hidden></label>
+      <div class="sample-row">
+        <span>Samples:</span>
+        <button type="button" data-sample="pier">Pier</button>
+        <button type="button" data-sample="boulevard">Boulevard</button>
+      </div>
+      <p id="photoCount" class="hint"></p>
+      <div id="strip" class="strip"></div>
+    </section>
+
+    <section>
+      <h2><span>02</span> Layout</h2>
+      <div id="layouts" class="layouts"></div>
+      <div id="panelAssign" class="panel-assign"></div>
+      <button id="shuffle" type="button" class="ghost">Shuffle panel photos</button>
+    </section>
+
+    <section>
+      <h2><span>03</span> Colour grade</h2>
+      <label>Grade
+        <select id="grade">
+          <option value="sunset">Vice Sunset</option>
+          <option value="neon">Neon Nights</option>
+          <option value="gold">Golden Hour</option>
+        </select>
+      </label>
+      <label>Intensity <input id="gradeI" type="range" min="0" max="100" value="80"></label>
+    </section>
+
+    <section>
+      <h2><span>04</span> Lettering</h2>
+      <label>Title <input id="caption" type="text" maxlength="42" value="Sunset Heist"></label>
+      <label>Subtitle <input id="subtitle" type="text" maxlength="34" value="Vice City Nights"></label>
+      <div class="two-col">
+        <label>Position
+          <select id="titlePos">
+            <option value="bottom">Bottom</option>
+            <option value="top">Top</option>
+            <option value="center">Centre</option>
+          </select>
+        </label>
+        <label>Size <input id="titleSize" type="range" min="55" max="150" value="100"></label>
+      </div>
+      <div class="swatches" role="group" aria-label="Accent colour">
+        <span>Accent</span>
+        <button type="button" data-accent="#ff2e88" class="swatch active" style="--c:#ff2e88" aria-label="Hot pink"></button>
+        <button type="button" data-accent="#22d3ee" class="swatch" style="--c:#22d3ee" aria-label="Cyan"></button>
+        <button type="button" data-accent="#ffb020" class="swatch" style="--c:#ffb020" aria-label="Amber"></button>
+        <button type="button" data-accent="#a78bfa" class="swatch" style="--c:#a78bfa" aria-label="Violet"></button>
+        <button type="button" data-accent="#34d399" class="swatch" style="--c:#34d399" aria-label="Mint"></button>
+      </div>
+    </section>
+
+    <section>
+      <h2><span>05</span> Export</h2>
+      <label>Size
+        <select id="size">
+          <option value="1080x1080">Square · 1080 × 1080</option>
+          <option value="1080x1350">Portrait · 1080 × 1350</option>
+          <option value="1920x1080">Wide · 1920 × 1080</option>
+        </select>
+      </label>
+      <button id="export" type="button" class="export-btn">Export PNG</button>
+      <p id="status" role="status"></p>
+    </section>
+  </aside>
+
+  <section id="stage" class="stage">
+    <canvas id="cover" width="1080" height="1080" aria-label="Your cover art"></canvas>
+    <p class="drop-hint">Drop photos anywhere on the cover to add them</p>
+  </section>
+</main>
+<script type="module" src="./src/main.js"></script>
+</body>
+</html>
