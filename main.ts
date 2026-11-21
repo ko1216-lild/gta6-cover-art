@@ -1,40 +1,132 @@
-// A working gta6-cover-art-01 entry (Node 22, standard library only): the app is this directory's app/ folder, plain
-// static files a desktop browser loads offline (app/index.html and its ES modules, no library and no network
-// request), and the program hands it in. It copies app/ and screenshots/ from beside this file to /output and writes
-// /output/dossier.json, the summary the judge reads, with the vendored make.fun library. Only the plumbing, not the
-// cover art the bounty asks for: Cover Snap, a plain one-photo square cover with a sunset tint and a bold caption,
-// exported as a 1080 x 1080 PNG. Its two sample photos (app/samples/) were made for make.fun with an image model and
-// are free to use. Build your own GTA-style cover maker in its place, put your 3 or 4 PNG or JPEG screenshots in
-// screenshots/ (the first by name is the cover) and run it.
+// Neon Coast Cover Maker — the hand-in program for make.fun's
+// gta6-cover-art-01 bounty.
 //
-// Serve it locally with `node serve.ts`, then open http://localhost:8080.
-// Outside the grader's container, MAKEFUN_OUTPUT_DIR stands in for /output:
+// The deliverable itself is the offline web app in app/ (plain static
+// files, no libraries, nothing fetched). This program is the courier
+// that hands it in, and it works in four steps:
+//
+//   1. inspect the entry on disk and refuse early if a piece is missing;
+//   2. publish app/ and screenshots/ into the output directory
+//      (MAKEFUN_OUTPUT_DIR when set, /output when it is not);
+//   3. describe the published tree with the vendored dossier library
+//      and store the result as dossier.json next to the copies;
+//   4. print a one-screen summary of what was handed in.
+//
+// Node 22, standard library only, no build step:
+//
 //   mkdir -p out && MAKEFUN_OUTPUT_DIR=out node main.ts
 
-import { cpSync, existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import {
+  cpSync,
+  existsSync,
+  lstatSync,
+  mkdirSync,
+  readdirSync,
+  writeFileSync,
+} from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildDossier } from './vendor/makefun-app.ts';
 
-const here = fileURLToPath(new URL('.', import.meta.url));
-const out = process.env.MAKEFUN_OUTPUT_DIR ?? '/output';
+// The caps this bounty scores under. Of these, only the text cap shapes
+// the dossier's bytes; the remaining ones exist so that this program
+// fails on the same entries the scorer would turn away: too many
+// screenshots or one too heavy, an app tree with too many entries or
+// too many bytes in total, or a single app path that runs too long.
+const LIMITS = {
+  text_max_bytes: 163840,
+  screenshots: { max: 4, max_bytes: 262144 },
+  app_max_files: 993,
+  app_max_bytes: 50331648,
+  app_path_max_bytes: 1000,
+};
 
-mkdirSync(out, { recursive: true });
-cpSync(join(here, 'app'), join(out, 'app'), { recursive: true });
-mkdirSync(join(out, 'screenshots'), { recursive: true });
-if (existsSync(join(here, 'screenshots'))) cpSync(join(here, 'screenshots'), join(out, 'screenshots'), { recursive: true });
+const IMAGE_NAME = /\.(?:png|jpe?g)$/i;
 
-// The scorer's own caps (reference/gate.json): only text_max_bytes shapes the bytes; the others refuse an entry the
-// scorer would refuse (more than 4 screenshots or one over 256 KiB; more than 993 files in app/ or 48 MiB of app
-// files, in all, or a path under app/ over 1000 bytes: app/ counts beside /output's own 1000-entry cap, its
-// screenshots/ and dossier.json).
-writeFileSync(
-  join(out, 'dossier.json'),
-  buildDossier(out, {
-    text_max_bytes: 163840,
-    screenshots: { max: 4, max_bytes: 262144 },
-    app_max_files: 993,
-    app_max_bytes: 50331648,
-    app_path_max_bytes: 1000,
-  }),
-);
+interface TreeMeasure {
+  files: number;
+  bytes: number;
+}
+
+/** Counts the regular files below a directory and adds up their sizes. */
+function measureTree(root: string): TreeMeasure {
+  const total: TreeMeasure = { files: 0, bytes: 0 };
+  const pending: string[] = [root];
+  while (pending.length > 0) {
+    const dir = pending.pop() as string;
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const path = join(dir, entry.name);
+      if (entry.isDirectory()) {
+        pending.push(path);
+      } else if (entry.isFile()) {
+        total.files += 1;
+        total.bytes += lstatSync(path).size;
+      }
+    }
+  }
+  return total;
+}
+
+/** Stops the run with a clear message when a required folder is absent. */
+function requireFolder(path: string, label: string): void {
+  if (!existsSync(path) || !lstatSync(path).isDirectory()) {
+    throw new Error(`${label} is missing: expected a directory at ${path}`);
+  }
+}
+
+/**
+ * Pre-flight inspection of the entry before anything is copied: the app
+ * folder must hold its entry page, and the screenshots folder must hold
+ * at least one image and no more than the scorer accepts. Returns the
+ * screenshot file names in sorted order.
+ */
+function inspectEntry(appDir: string, shotsDir: string): string[] {
+  requireFolder(appDir, 'app/');
+  const page = join(appDir, 'index.html');
+  if (!existsSync(page) || !lstatSync(page).isFile()) {
+    throw new Error('app/index.html is missing: the app has no entry page');
+  }
+  requireFolder(shotsDir, 'screenshots/');
+  const shots = readdirSync(shotsDir)
+    .filter((name) => IMAGE_NAME.test(name))
+    .sort();
+  if (shots.length === 0) {
+    throw new Error('screenshots/ holds no PNG or JPEG image to hand in');
+  }
+  if (shots.length > LIMITS.screenshots.max) {
+    throw new Error(
+      `screenshots/ holds ${shots.length} images, over the ${LIMITS.screenshots.max} allowed`,
+    );
+  }
+  return shots;
+}
+
+/** Copies one folder of the entry into the output directory. */
+function publishFolder(from: string, to: string): void {
+  mkdirSync(to, { recursive: true });
+  cpSync(from, to, { recursive: true });
+}
+
+function handIn(): void {
+  const entryRoot = fileURLToPath(new URL('.', import.meta.url));
+  const appDir = join(entryRoot, 'app');
+  const shotsDir = join(entryRoot, 'screenshots');
+
+  const shots = inspectEntry(appDir, shotsDir);
+
+  const outputDir = process.env.MAKEFUN_OUTPUT_DIR ?? '/output';
+  mkdirSync(outputDir, { recursive: true });
+  publishFolder(appDir, join(outputDir, 'app'));
+  publishFolder(shotsDir, join(outputDir, 'screenshots'));
+
+  const dossier = buildDossier(outputDir, LIMITS);
+  writeFileSync(join(outputDir, 'dossier.json'), dossier);
+
+  const appMeasure = measureTree(join(outputDir, 'app'));
+  console.log('Neon Coast Cover Maker — handed in');
+  console.log(`  app:         ${appMeasure.files} files, ${appMeasure.bytes} bytes`);
+  console.log(`  screenshots: ${shots.length} (${shots.join(', ')})`);
+  console.log(`  dossier:     ${dossier.length} bytes -> ${join(outputDir, 'dossier.json')}`);
+}
+
+handIn();
